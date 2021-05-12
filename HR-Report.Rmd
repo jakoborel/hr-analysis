@@ -1,0 +1,347 @@
+---
+title: "HR Data Report"
+author: "Jakob Orel"
+date: "11/24/2020"
+output:
+  html_document: default
+  pdf_document: default
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(tidyverse)
+library(DescTools)
+library(lubridate)
+library(highcharter)
+library(caret)
+knitr::opts_chunk$set(echo = TRUE)
+data <- read.csv('HRDataset_v14.csv')
+```
+Analyzing human resources data is extremely important for the upper level managers and C-suite executives to 
+understand the influences on their employees. It is important to analyze what makes employees more effective and productive. This can lead to making decisions on if an organization should hire or fire employees, conduct employee training, or promote individuals. It could also lead to better strategies for recruiting new hires or retaining current employees. All of this information is greatly important to managers of a company.
+
+# Table of Contents
+1. [Introduction to the Data](#introduction-to-the-data)
+2. [Questions of an HR Manager](#questions-of-an-hr-manager)
+3. [Exploring Manager's Effect On Performance](#exploring-managers-effect-on-performance)
+4. [Exploring Department's Performance](#exploring-departments-performance)
+5. [Exploring Racial Diversity in the Organization](#exploring-racial-diversity-in-the-organization)
+6. [Test Average Salaries by Race](#test-average-salaries-by-race)
+7. [Exploring Diversity in Sex](#exploring-diversity-in-sex)
+8. [Test Average Salaries by Sex](#test-average-salaries-by-sex)
+9. [Exploring Recruitment by Race](#exploring-recruitment-by-race)
+10. [Exploring Recruitment by Sex](#exploring-recruitment-by-sex)
+11. [Exploring the Factors of Terminated Employees](#exploring-the-factors-of-terminated-employees)
+
+### Introduction to the Data
+```{r structure}
+str(data)
+```
+This dataset contains employee information for 311 employees of a synthetically created organization for the use 
+in courses at the New England College of Business. Dr. Carla Patalona used this dataset to teach Tableau visualization. In Excel, I added several columns including the Age of the employee (using DOB) and NumYearsWorked (using DateofHire and DateofTerm). I also had to do some data cleaning by formatting the date columns to be easily readable in R. There were also several erroneous values with spaces and capitalization issues that needed correction.
+
+### Questions of an HR Manager
+There are hundreds of important questions that an HR manager may have about their employees. These examples may be useful questions to analyze the data further.
+\
+\qquad 1. Do certain managers affect the performance score of employees?
+
+* Some managers may score their employees or treat their employees worse. This may affect productivity and should be noted for professional development.
+
+2. Is the organization diverse in sex and race? 
+
+* Diversity is extremely important in a company to ensure there is inclusion of all employees and to expand the perspectives and ideas of team members. The percentage of employees should align relatively closely to the percentage of the population in race and gender.
+
+3. How are we recruiting for minority groups in gender or race? How can we hire more effectively to become more diverse?
+
+* Recruiting can be an effective way to improve the diversity of the organization. I would predict that there is little evidence of a difference in recruiting for gender, but race may be different. For example, employees who are white may be more likely to be hired from an online application where as minority groups may be hired from in-person interactions or referrals. 
+
+4. Is there bias for the salaries of employees based on gender or race? 
+
+* This is extremely important. I would assume that there is no significant difference in the average salaries of these groups, but it is important to make sure. This may be affected by other factors including experience and position.
+
+5. How do we keep employees longer? What variables lead to a higher likelihood of employees quitting?
+
+* This may be very difficult to predict but I assume that Age, NumYearsWorked, EmpSatisfaction, and the EngagementSurvey variables will be the most important features in determining if an employee is terminated.
+
+
+
+### Exploring Manager's Effect on Performance
+
+```{r explore_managers}
+anyNA(data$ManagerID)
+
+# get rid of employees where Manager is NA
+managers <- data[which(!is.na(data$ManagerID)),]
+
+table(managers$ManagerID)
+
+# Is there a correlation between performance scores and Manager?
+ggplot(managers, aes(x=ManagerName, y=PerfScoreID)) +
+        geom_boxplot() +
+  theme(axis.text.x = element_text(angle=90))
+
+# There are too many managers to look into this and see valuable reasons for better performance.
+
+manager_scores <-managers%>%group_by(ManagerName,PerformanceScore)%>%summarise(Total=n())
+ 
+ggplot(manager_scores,aes(x=PerformanceScore,y=Total,fill=PerformanceScore)) +
+ geom_bar(stat="identity",position="dodge") +
+ facet_wrap(~ManagerName) +
+ theme(axis.text.x = element_text(angle=90)) +
+ ggtitle("Manager Wise Performance Rating")
+
+```
+
+It appears that David Stanley, Janet King, and Simon Roup have some of the highest performance
+Brannon Miller appears to give the most PIPs and has a higher spread in Performance Scores.
+This is also seen in the box plots. This may be useful to understand how employees are performing 
+under certain pressures. Maybe a professional development meeting with Brannon Miller may be useful to understand
+his reports and their performance. Maybe this also has to do with the department that Brannon oversees. It could be that that department may not perform as well.
+
+### Exploring Department's Performance
+```{r explore_department}
+department_scores <-data%>%group_by(Department,PerformanceScore)%>%summarise(Total=n())
+ 
+ggplot(department_scores,aes(x=PerformanceScore,y=Total,fill=PerformanceScore)) +
+ geom_bar(stat="identity",position="dodge") +
+ facet_wrap(~Department) +
+ theme(axis.text.x = element_text(angle=90)) +
+ ggtitle("Department Wise Performance Rating")
+
+```
+
+The production department clearly has the most employees with employees that exceed performance and also need improvement.
+There does not appear to be a large trend but Sales has some poor performance. 
+
+### Exploring Racial Diversity in the Organization
+```{r explore_racial_diversity}
+# Lets look into the racial diversity of the organization.
+employed <- data[which(!data$Termd), ]
+anyNA(data$RaceDesc)
+
+PercTable(employed$RaceDesc)
+# This organization appears to be relatively diverse currently and is relatively proportionate to the US population
+# Is there a difference in the race of people who were terminated?
+
+terminated <- data[which(data$Termd==1), ]
+
+PercTable(terminated$RaceDesc)
+# Takeaways: 
+# 1. It appears the company is currently racially diverse
+# 2. It appears there are not any large disparities in the races of those terminated.
+
+# Now that I believe the proportions are ok. Is pay rate affected by race?
+
+ggplot(employed, aes(x=RaceDesc, y=Salary)) + 
+  geom_boxplot() +
+  labs(title = "Salary by Race")
+# There does not appear to be much bias in salary based on race. There is only 1 Hispanic employee. There is a bit of a spread for Asian salary but I doubt it is significant.
+ggplot(data, aes(x=RaceDesc, y=Salary)) +
+  geom_bar(stat="summary", fun=mean, fill="#FF6666") +
+  ggtitle("Average Salary by Race")
+
+# The Hispanic average salary appears high because there is only one employee.
+
+```
+The percentages of employees by race are relative to the percentages of the population provided by the US Census Bureau for 2018 (White (76.3%), Black (13.4%), Asian (5.8%), American Native (1.3%), Two or more (2.8%), Hispanic (18.5%)). It appears that the average salary for Black/African American employees (*M* = 74431.02) is higher than White employees (*M* = 67287.55).
+
+### Test Average Salaries by Race
+```{r test_salaries_race}
+# Is the average salary for Black/African American employees significantly different from the average salary of White employees?
+employees_black <- data[which(data$RaceDesc=="Black or African American"),]
+employees_white <- data[which(data$RaceDesc=="White"),]
+hist(employees_black$Salary)
+hist(employees_white$Salary)
+shapiro.test(employees_black$Salary)
+shapiro.test(employees_white$Salary)
+# Salary is not normally distributed. Tiny p-value in Shapiro test and skewed histograms.
+# Samples are not paired and not normal so we will use the Mann-Whitney test.
+wilcox.test(employees_black$Salary, employees_white$Salary)
+# p-value is high for Mann-Whitney test meaning that the salary is approximately the same. They come from the same population.
+# The test does not indicate any significant difference.
+# Lets run a t.test just or fun even though it is not normally distributed
+t.test(employees_black$Salary, employees_white$Salary)
+# This p-value is also high meaning there is no significant difference in Salary between employees who are white or black.
+# This is good news for the organization!
+```
+The results of the Mann-Whitney test lead us to believe that there is no statistically significant difference between the average salary of Black and White employees in this organization, but this is relatively misleading. For example, the results of this test would be appropriate for a random sample of employees from all Target stores in Iowa, but it is not appropriate for this dataset because it is only the employees from one certain organization. The results for the Target stores could be used to generalize the population of all Target store employees instead of just one. The results of the test could be replicated and would be exactly the same (given no employees were terminated or hired) in this dataset This is an example of how statistics can be used inappropriately. In this case, the average salary for Black employees is actually truly greater than the average salary of White employees because this is not a random sample from a population. This could be for a number of reasons and should be explored further (perhaps experience and position will affect salary). 
+
+
+### Exploring Diversity in Sex
+```{r explore_gender}
+# Lets look to see if there is gender diversity in the organization.
+PercTable(employed$Sex)
+PercTable(terminated$Sex)
+
+# This organization has a higher percentage of females than males.
+# The gender of employees terminated is proportionate to those still employed.
+
+employed_gender <- employed %>% group_by(Sex,Position) %>% summarise(Total=n())
+
+# A note, Highcharter is useful in HTML as an interactive widget.
+hchart(employed_gender,type="column",hcaes(x=Position,y=Total,group=Sex)) %>%
+  hc_add_theme(hc_theme_google())
+
+# Besides the IT department it looks like there are quite a few more women in this organization
+# especially in the Production department.
+
+# Is there bias for sex in salaries?
+ggplot(data, aes(x=Sex, y=Salary, fill=Sex)) +
+  geom_bar(stat="summary", fun=mean) +
+  scale_fill_manual("Sex", values= c("M"="#e15759", "F"="#4e79a7")) +
+  ggtitle("Average Salary by Sex")
+
+# Looks like Males have slightly higher average salary. Lets test this.
+
+```
+
+
+### Test Average Salaries by Sex
+
+```{r test_salaries_gender}
+# Lets test to see if the average salary for males is significantly different from females
+employees_female <- data[which(data$Sex=="F"),]
+employees_male <- data[which(data$Sex=="M"),]
+table(data$Sex)
+hist(employees_female$Salary)
+hist(employees_male$Salary)
+shapiro.test(employees_female$Salary)
+shapiro.test(employees_male$Salary)
+# Salary is not normally distributed. Tiny p-value in Shapiro test and skewed histograms.
+# Samples are not paired and not normal
+wilcox.test(employees_female$Salary, employees_male$Salary)
+# p-value is high for Mann-Whitney test meaning that the salary is approximately the same. They come from the same population.
+# The test does not indicate any significant difference.
+# Lets run a t.test just or fun even though it is not normally distributed
+t.test(employees_female$Salary, employees_male$Salary)
+# This p-value is also high meaning there is no significant difference in Salary between employees who are female or male.
+# This is good news for the organization!
+
+```
+
+Similar to the statistical test done on the difference in average salary for race, this test is not that relevant. It would only be appropriate if we were looking at a random sample out of a population, but instead we are looking at a defined sample. If we wanted to explore why males had higher average salaries than females it would be worth looking into the positions and experience of each employee. It may also be worth noting that median may be a more accurate statistic because an employee who is paid much higher such as the CEO will cause a bias in the average.
+
+### Exploring Recruitment by Race
+Let's explore how the organization is hiring new employees. Perhaps we can find advantages to different forms of recruiting.
+
+```{r explore_recruitment_race}
+# Format date of hire
+data$DateofHire <- as.Date(data$DateofHire, "%m/%d/%y")
+data$YearofHire <- year(data$DateofHire)
+
+# count the number of hires by race over the years
+hiring_pattern <- data %>% count(YearofHire,RaceDesc)
+# graph this in aline graph
+ggplot(hiring_pattern,aes(YearofHire,y=n,group=RaceDesc,color=RaceDesc)) +
+  geom_line(size=1) +
+  geom_point(size=2)  +
+  scale_color_hue(name="Race",l=30) +
+  ggtitle("Hiring Trend over the Years")
+
+# There was an increase in hiring (especially  people who are Black/African American) but the trend has decreased as there have been few hires recently.
+
+# Lets look into how these people were hired
+recruitment_source <-data %>% group_by(RecruitmentSource) %>%summarise(Total=n()) %>%arrange(desc(Total))
+ggplot(recruitment_source,aes(reorder(RecruitmentSource, Total),y=Total)) +
+  geom_bar(stat="identity", fill= "#FF6666") +
+  coord_flip() +
+  ggtitle("Source of Recruitment")
+
+# Is there bias in recruitment for race?
+data%>%filter(RecruitmentSource=="Employee Referral") %>%count(RaceDesc)
+data%>%filter(RecruitmentSource=="Diversity Job Fair") %>%count(RaceDesc)
+data%>%filter(RecruitmentSource=="Indeed") %>%count(RaceDesc)
+
+recruitment_race <-data%>%group_by(RecruitmentSource,RaceDesc) %>%summarise(Total=n())
+
+ggplot(recruitment_race,aes(reorder(RecruitmentSource,Total),Total,fill=Total)) +
+  geom_bar(stat="identity") +
+  coord_flip() +
+  facet_wrap(~RaceDesc) +
+  ggtitle("Recruitment Source by Race")
+
+```
+
+It appears most White people are hired from Job Sites while Black employees are 
+primarily hired from Diversity Job Fairs.
+This is a good indicator that these intentional diversity job fairs are effective 
+and useful for the organization to have diverse ideas. 
+
+
+### Exploring Recruitment by Sex
+
+```{r explore_recruitment_gender}
+# count the number of hires by race over the years
+hiring_pattern_gender <- data %>% count(YearofHire,Sex)
+# graph this in aline graph
+ggplot(hiring_pattern_gender,aes(YearofHire,y=n,group=Sex,color=Sex)) +
+  geom_line(size=1) +
+  geom_point(size=2)  +
+  scale_color_manual(name="Sex",values= c("M"="#e15759", "F"="#4e79a7")) +
+  ggtitle("Hiring Trend over the Years")
+
+# It appears that they have had a trend of hiring more females than males but in recent years it has flipped.
+# How are they being recruited?
+
+recruitment_gender <-data%>%group_by(RecruitmentSource,Sex) %>%summarise(Total=n())
+
+ggplot(recruitment_gender,aes(reorder(RecruitmentSource,Total),Total,fill=Sex)) +
+  geom_bar(stat="identity", position="dodge") +
+  scale_fill_manual("Sex", values= c("M"="#e15759", "F"="#4e79a7")) +
+  coord_flip() +
+  ggtitle("Recruitment Mode by Sex")
+
+```
+
+It appears females are hired more from Job Sites and Google searches and males are hired
+more by employee referral. It may be a good idea for the organization to see
+how many applications they receive from males on job sites if they would like to hire more men.
+These averages may be proven with statistical tests, but they would not be that useful to the organization.
+
+### Exploring the Factors of Terminated Employees
+
+Now it is time to explore the big question: What features lead to a higher likelihood of someone quitting?
+\
+Some things that I think are logically related:
+\
+1. EmpSatisfaction
+\
+2. Age
+\
+3. EngagementSurvey
+\
+4. Absences
+\
+5. NumYearsWorked
+
+```{r explore_termd}
+
+features <- data[,c(33, 17, 26)]
+
+# Termd includes those who were fired, but it is an easy variable and there are not many who were fired.
+featurePlot(x=features, y=as.factor(data$Termd), plot='ellipse')
+# This feature plot shows the NumYearsWorked is a relatively strong factor because ellipses have clearly separated areas.
+
+# Maybe we should look at some other features?
+#features$MaritalStatusID <- data[,4]
+#features$Salary <- data[,10]
+#features$PerfScoreID <- data[,8]
+# Turns out these have little effect at all.
+
+# Lets just give some regression models a try.
+
+summary(lm(Termd ~ Age + EmpSatisfaction, data))
+summary(lm(Termd ~ EngagementSurvey + Absences, data))
+summary(lm(Termd ~ Salary + PerfScoreID, data))
+summary(lm(Termd ~ NumYearsWorked + EmpSatisfaction + Age, data))
+
+# The only strong feature in these regressions is NumYearsWorked with a p-value < 2e-16. For every year an employee works, the likelihood of being terminated goes down by about 12% according to this regression model.
+
+# These are weak regression models.
+```
+This is a very tough question. It may require some more advanced techniques
+like using decision trees to determine the most important features.
+There are many reasons why someone may quit and it may just be that we do not 
+have variables that have strong correlations for determining if someone will
+quit. For example, they may quit because of the Salary, Manager, diversity of the organization, school, retirement or simply because they just want a new job. More advanced machine learning models would be able to accomadate for the many different variables that may affect if an employee is terminated. 
